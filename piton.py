@@ -6,25 +6,39 @@ drawing_mode = False
 last_x, last_y = None, None
 canvas = None
 current_color = (255, 0, 0)  # Color inicial: Azul
+calibration_step = 0
 calibrated = False
 lower_skin = None
 upper_skin = None
 
-# Función para realizar calibración de la piel
+# Función para realizar calibración de la piel en pasos
 def calibrate_skin(frame):
-    global lower_skin, upper_skin, calibrated
+    global lower_skin, upper_skin, calibration_step, calibrated
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-    # Usar una región fija para calibrar (centro de la imagen)
     h, w, _ = frame.shape
-    x1, y1, x2, y2 = w // 2 - 50, h // 2 - 50, w // 2 + 50, h // 2 + 50
+    # Definir regiones para cada paso de calibración
+    if calibration_step == 0:
+        # Calibrar con toda la mano
+        x1, y1, x2, y2 = w // 2 - 100, h // 2 - 100, w // 2 + 100, h // 2 + 100
+        cv2.putText(frame, "Coloca toda la mano", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+    elif calibration_step == 1:
+        # Calibrar con el dedo índice
+        x1, y1, x2, y2 = w // 2 - 50, h // 2 - 50, w // 2 + 50, h // 2 + 50
+        cv2.putText(frame, "Coloca solo un dedo", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+    else:
+        calibrated = True
+        return
+
     roi = hsv[y1:y2, x1:x2]
-
     # Obtener los valores mínimos y máximos de HSV en la región
-    lower_skin = np.percentile(roi.reshape(-1, 3), 5, axis=0).astype(np.uint8)
-    upper_skin = np.percentile(roi.reshape(-1, 3), 95, axis=0).astype(np.uint8)
+    if calibration_step == 0:
+        lower_skin = np.percentile(roi.reshape(-1, 3), 5, axis=0).astype(np.uint8)
+        upper_skin = np.percentile(roi.reshape(-1, 3), 95, axis=0).astype(np.uint8)
+    calibration_step += 1
 
-    calibrated = True
+    # Dibujar región de calibración
+    cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 255, 255), 2)
 
 # Función para detectar la mano y los dedos
 def detect_fingers(frame):
@@ -115,13 +129,11 @@ while cap.isOpened():
     if canvas is None or canvas.shape[:2] != (h, w):
         canvas = np.zeros((h, w, 3), dtype=np.uint8)
 
-    # Calibración inicial
+    # Calibración inicial por pasos
     if not calibrated:
-        cv2.putText(frame, "Calibrando...", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
         calibrate_skin(frame)
-        cv2.rectangle(frame, (w // 2 - 50, h // 2 - 50), (w // 2 + 50, h // 2 + 50), (255, 255, 255), 2)
         cv2.imshow('Dibujo en vivo', frame)
-        cv2.waitKey(2000)  # Esperar 2 segundos para la calibración
+        cv2.waitKey(1000)  # Esperar entre pasos
         continue
 
     # Detectar dedos
