@@ -8,6 +8,7 @@ canvas = None
 current_color = (255, 0, 0)  # Color inicial: Azul
 mouse_click_position = None  # Almacena la posición del clic del mouse
 render_3d_mode = False  # Indica si el modo 3D está activado
+add_3d_relief = False  # Indica si se debe aplicar relieve 3D a las líneas
 rotation_angle_x = 0  # Ángulo de rotación en X para el 3D
 rotation_angle_y = 0  # Ángulo de rotación en Y para el 3D
 mouse_drag_start = None  # Posición inicial para arrastrar el mouse
@@ -108,6 +109,12 @@ def render_3d(canvas):
     matrix = cv2.getPerspectiveTransform(src_points, dst_points)
     return cv2.warpPerspective(canvas, matrix, (cols, rows))
 
+# Función para agregar relieve 3D a las líneas
+def add_relief(canvas):
+    kernel = np.array([[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]])
+    relief = cv2.filter2D(canvas, -1, kernel)
+    return cv2.add(canvas, relief)
+
 # Captura de video
 cap = cv2.VideoCapture(0)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
@@ -177,6 +184,11 @@ while cap.isOpened():
     cv2.putText(frame, "Borrar", (480, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
     cv2.putText(frame, "3D", (660, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
+    if render_3d_mode:
+        # Mostrar botón adicional para activar el relieve 3D
+        cv2.rectangle(frame, (760, 10), (900, 150), (150, 150, 255), -1)  # Relieve 3D
+        cv2.putText(frame, "Relieve", (780, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+
     # Detectar interacción con los botones mediante clic del mouse
     if mouse_click_position:
         x, y = mouse_click_position
@@ -195,11 +207,16 @@ while cap.isOpened():
         elif 610 <= x <= 750 and 10 <= y <= 150:  # Activar modo 3D
             render_3d_mode = not render_3d_mode
             print(f"Modo 3D {'activado' if render_3d_mode else 'desactivado'}")
+        elif render_3d_mode and 760 <= x <= 900 and 10 <= y <= 150:  # Activar relieve 3D
+            add_3d_relief = not add_3d_relief
+            print(f"Relieve 3D {'activado' if add_3d_relief else 'desactivado'}")
         mouse_click_position = None  # Reset posición clickeada
 
     # Aplicar modo 3D si está activado
     if render_3d_mode:
         transformed_canvas = render_3d(canvas)
+        if add_3d_relief:
+            transformed_canvas = add_relief(transformed_canvas)
         combined_frame = cv2.addWeighted(frame, 0.5, transformed_canvas, 0.5, 0)
     else:
         combined_frame = cv2.addWeighted(frame, 0.5, canvas, 0.5, 0)
