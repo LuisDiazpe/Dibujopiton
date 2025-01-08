@@ -28,6 +28,7 @@ def calibrate_skin(frame):
         cv2.putText(frame, "Coloca solo un dedo", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
     else:
         calibrated = True
+        cv2.putText(frame, "Calibración completada", (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         return
 
     roi = hsv[y1:y2, x1:x2]
@@ -133,7 +134,9 @@ while cap.isOpened():
     if not calibrated:
         calibrate_skin(frame)
         cv2.imshow('Dibujo en vivo', frame)
-        cv2.waitKey(1000)  # Esperar entre pasos
+        key = cv2.waitKey(3000)  # Esperar 3 segundos entre pasos
+        if key & 0xFF == ord('q'):
+            break
         continue
 
     # Detectar dedos
