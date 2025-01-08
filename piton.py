@@ -110,14 +110,23 @@ while cap.isOpened():
     cv2.rectangle(frame, (10, 10), (60, 60), (0, 0, 255), -1)  # Rojo
     cv2.rectangle(frame, (70, 10), (120, 60), (0, 255, 0), -1)  # Verde
     cv2.rectangle(frame, (130, 10), (180, 60), (255, 0, 0), -1)  # Azul
+    cv2.rectangle(frame, (190, 10), (240, 60), (200, 200, 200), -1)  # Borrar
 
     # Detectar clics en los botones
-    if cv2.waitKey(1) & 0xFF == ord('r'):
-        current_color = (0, 0, 255)  # Rojo
-    elif cv2.waitKey(1) & 0xFF == ord('g'):
-        current_color = (0, 255, 0)  # Verde
-    elif cv2.waitKey(1) & 0xFF == ord('b'):
-        current_color = (255, 0, 0)  # Azul
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    mask_buttons = cv2.inRange(hsv, np.array([0, 0, 200]), np.array([180, 50, 255]))
+    contours_buttons, _ = cv2.findContours(mask_buttons, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    for contour in contours_buttons:
+        x, y, w, h = cv2.boundingRect(contour)
+        if 10 <= x <= 60 and 10 <= y <= 60:  # Rojo
+            current_color = (0, 0, 255)
+        elif 70 <= x <= 120 and 10 <= y <= 60:  # Verde
+            current_color = (0, 255, 0)
+        elif 130 <= x <= 180 and 10 <= y <= 60:  # Azul
+            current_color = (255, 0, 0)
+        elif 190 <= x <= 240 and 10 <= y <= 60:  # Borrar
+            canvas = np.zeros((h, w, 3), dtype=np.uint8)
 
     # Combinar lienzo con la imagen de la cámara
     combined_frame = cv2.addWeighted(frame, 0.5, canvas, 0.5, 0)
