@@ -6,48 +6,19 @@ drawing_mode = False
 last_x, last_y = None, None
 canvas = None
 current_color = (255, 0, 0)  # Color inicial: Azul
-calibration_step = 0
-calibrated = False
-lower_skin = None
-upper_skin = None
-
-# Función para realizar calibración de la piel en pasos
-def calibrate_skin(frame):
-    global lower_skin, upper_skin, calibration_step, calibrated
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-
-    h, w, _ = frame.shape
-    # Definir regiones para cada paso de calibración
-    if calibration_step == 0:
-        # Calibrar con toda la mano
-        x1, y1, x2, y2 = w // 2 - 100, h // 2 - 100, w // 2 + 100, h // 2 + 100
-        cv2.putText(frame, "Coloca toda la mano", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
-    elif calibration_step == 1:
-        # Calibrar con el dedo índice
-        x1, y1, x2, y2 = w // 2 - 50, h // 2 - 50, w // 2 + 50, h // 2 + 50
-        cv2.putText(frame, "Coloca solo un dedo", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
-    else:
-        calibrated = True
-        cv2.putText(frame, "Calibración completada", (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        return
-
-    roi = hsv[y1:y2, x1:x2]
-    # Obtener los valores mínimos y máximos de HSV en la región
-    if calibration_step == 0:
-        lower_skin = np.percentile(roi.reshape(-1, 3), 5, axis=0).astype(np.uint8)
-        upper_skin = np.percentile(roi.reshape(-1, 3), 95, axis=0).astype(np.uint8)
-    calibration_step += 1
-
-    # Dibujar región de calibración
-    cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 255, 255), 2)
+mouse_click_position = None  # Almacena la posición del clic del mouse
+render_3d_mode = False  # Indica si el modo 3D está activado
+rotation_angle_x = 0  # Ángulo de rotación en X para el 3D
+rotation_angle_y = 0  # Ángulo de rotación en Y para el 3D
+mouse_drag_start = None  # Posición inicial para arrastrar el mouse
 
 # Función para detectar la mano y los dedos
 def detect_fingers(frame):
-    global lower_skin, upper_skin
-    if not calibrated:
-        return None, []
-
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+    # Rango de color para la piel (ajustable según la iluminación)
+    lower_skin = np.array([0, 20, 70], dtype=np.uint8)
+    upper_skin = np.array([20, 255, 255], dtype=np.uint8)
 
     # Crear máscara para el color de la piel
     mask = cv2.inRange(hsv, lower_skin, upper_skin)
@@ -94,28 +65,56 @@ def detect_fingers(frame):
 
     return max_contour, fingers
 
-# Función para detectar la piel dentro de un área específica
-def detect_skin_in_area(frame, x1, y1, x2, y2):
-    global lower_skin, upper_skin
-    if not calibrated:
-        return False
+# Función de callback para manejar clics y arrastres del mouse
+def mouse_callback(event, x, y, flags, param):
+    global mouse_click_position, mouse_drag_start, rotation_angle_x, rotation_angle_y
 
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    if event == cv2.EVENT_LBUTTONDOWN:
+        mouse_click_position = (x, y)
+        mouse_drag_start = (x, y)  # Iniciar arrastre
+        print(f"Clic detectado en: {mouse_click_position}")
 
-    # Recortar el área y detectar piel
-    roi = hsv[y1:y2, x1:x2]
-    mask = cv2.inRange(roi, lower_skin, upper_skin)
+    elif event == cv2.EVENT_MOUSEMOVE and mouse_drag_start:
+        # Calcular diferencias de movimiento para rotar
+        dx = x - mouse_drag_start[0]
+        dy = y - mouse_drag_start[1]
+        rotation_angle_x += dy * 0.5  # Ajustar sensibilidad
+        rotation_angle_y += dx * 0.5
+        mouse_drag_start = (x, y)  # Actualizar posición inicial
 
-    # Calcular si hay piel presente
-    skin_area = cv2.countNonZero(mask)
-    total_area = (x2 - x1) * (y2 - y1)
+    elif event == cv2.EVENT_LBUTTONUP:
+        mouse_drag_start = None  # Terminar arrastre
 
-    return skin_area > 0.2 * total_area  # Activar si más del 20% es piel
+# Función para aplicar el efecto 3D al dibujo con rotación
+def render_3d(canvas):
+    rows, cols, _ = canvas.shape
+    src_points = np.float32([[0, 0], [cols, 0], [0, rows], [cols, rows]])
+
+    # Ajustar puntos de destino según la rotación
+    angle_x_rad = np.radians(rotation_angle_x)
+    angle_y_rad = np.radians(rotation_angle_y)
+
+    dx = np.tan(angle_y_rad) * cols / 2
+    dy = np.tan(angle_x_rad) * rows / 2
+
+    dst_points = np.float32([
+        [50 + dx, 50 + dy],
+        [cols - 50 - dx, 30 + dy],
+        [70 + dx, rows - 50 - dy],
+        [cols - 70 - dx, rows - 70 - dy]
+    ])
+
+    # Crear una transformación de perspectiva
+    matrix = cv2.getPerspectiveTransform(src_points, dst_points)
+    return cv2.warpPerspective(canvas, matrix, (cols, rows))
 
 # Captura de video
 cap = cv2.VideoCapture(0)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+cv2.namedWindow('Dibujo en vivo')
+cv2.setMouseCallback('Dibujo en vivo', mouse_callback)
 
 while cap.isOpened():
     ret, frame = cap.read()
@@ -129,15 +128,6 @@ while cap.isOpened():
     # Inicializar lienzo si no está creado o si el tamaño cambia
     if canvas is None or canvas.shape[:2] != (h, w):
         canvas = np.zeros((h, w, 3), dtype=np.uint8)
-
-    # Calibración inicial por pasos
-    if not calibrated:
-        calibrate_skin(frame)
-        cv2.imshow('Dibujo en vivo', frame)
-        key = cv2.waitKey(3000)  # Esperar 3 segundos entre pasos
-        if key & 0xFF == ord('q'):
-            break
-        continue
 
     # Detectar dedos
     contour, fingers = detect_fingers(frame)
@@ -173,24 +163,46 @@ while cap.isOpened():
                         cv2.line(canvas, (last_x, last_y), (x, y), current_color, 5)
                     last_x, last_y = x, y
 
-    # Crear botones para cambiar colores (agrandados con hitbox extendida)
+    # Crear botones para cambiar colores y activar el modo 3D
     cv2.rectangle(frame, (10, 10), (150, 150), (0, 0, 255), -1)  # Rojo
     cv2.rectangle(frame, (160, 10), (300, 150), (0, 255, 0), -1)  # Verde
     cv2.rectangle(frame, (310, 10), (450, 150), (255, 0, 0), -1)  # Azul
     cv2.rectangle(frame, (460, 10), (600, 150), (200, 200, 200), -1)  # Borrar
+    cv2.rectangle(frame, (610, 10), (750, 150), (100, 100, 255), -1)  # 3D
 
-    # Detectar interacción con los botones mediante detección de piel
-    if detect_skin_in_area(frame, 10, 10, 150, 150):  # Rojo
-        current_color = (0, 0, 255)
-    elif detect_skin_in_area(frame, 160, 10, 300, 150):  # Verde
-        current_color = (0, 255, 0)
-    elif detect_skin_in_area(frame, 310, 10, 450, 150):  # Azul
-        current_color = (255, 0, 0)
-    elif detect_skin_in_area(frame, 460, 10, 600, 150):  # Borrar
-        canvas = np.zeros((h, w, 3), dtype=np.uint8)
+    # Etiquetas de los botones
+    cv2.putText(frame, "Rojo", (30, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    cv2.putText(frame, "Verde", (180, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    cv2.putText(frame, "Azul", (340, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    cv2.putText(frame, "Borrar", (480, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
+    cv2.putText(frame, "3D", (660, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
-    # Combinar lienzo con la imagen de la cámara
-    combined_frame = cv2.addWeighted(frame, 0.5, canvas, 0.5, 0)
+    # Detectar interacción con los botones mediante clic del mouse
+    if mouse_click_position:
+        x, y = mouse_click_position
+        if 10 <= x <= 150 and 10 <= y <= 150:  # Rojo
+            current_color = (0, 0, 255)
+            print("Color cambiado a Rojo")
+        elif 160 <= x <= 300 and 10 <= y <= 150:  # Verde
+            current_color = (0, 255, 0)
+            print("Color cambiado a Verde")
+        elif 310 <= x <= 450 and 10 <= y <= 150:  # Azul
+            current_color = (255, 0, 0)
+            print("Color cambiado a Azul")
+        elif 460 <= x <= 600 and 10 <= y <= 150:  # Borrar
+            canvas = np.zeros((h, w, 3), dtype=np.uint8)
+            print("Canvas borrado")
+        elif 610 <= x <= 750 and 10 <= y <= 150:  # Activar modo 3D
+            render_3d_mode = not render_3d_mode
+            print(f"Modo 3D {'activado' if render_3d_mode else 'desactivado'}")
+        mouse_click_position = None  # Reset posición clickeada
+
+    # Aplicar modo 3D si está activado
+    if render_3d_mode:
+        transformed_canvas = render_3d(canvas)
+        combined_frame = cv2.addWeighted(frame, 0.5, transformed_canvas, 0.5, 0)
+    else:
+        combined_frame = cv2.addWeighted(frame, 0.5, canvas, 0.5, 0)
 
     # Mostrar la imagen
     cv2.imshow('Dibujo en vivo', combined_frame)
