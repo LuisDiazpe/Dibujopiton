@@ -5,6 +5,7 @@ import numpy as np
 drawing_mode = False
 last_x, last_y = None, None
 canvas = None
+current_color = (255, 0, 0)  # Color inicial: Azul
 
 # Función para detectar la mano y los dedos
 def detect_fingers(frame):
@@ -102,8 +103,21 @@ while cap.isOpened():
 
                 if last_x is not None and last_y is not None:
                     # Dibujar en el lienzo
-                    cv2.line(canvas, (last_x, last_y), (x, y), (255, 0, 0), 5)
+                    cv2.line(canvas, (last_x, last_y), (x, y), current_color, 5)
                 last_x, last_y = x, y
+
+    # Crear botones para cambiar colores
+    cv2.rectangle(frame, (10, 10), (60, 60), (0, 0, 255), -1)  # Rojo
+    cv2.rectangle(frame, (70, 10), (120, 60), (0, 255, 0), -1)  # Verde
+    cv2.rectangle(frame, (130, 10), (180, 60), (255, 0, 0), -1)  # Azul
+
+    # Detectar clics en los botones
+    if cv2.waitKey(1) & 0xFF == ord('r'):
+        current_color = (0, 0, 255)  # Rojo
+    elif cv2.waitKey(1) & 0xFF == ord('g'):
+        current_color = (0, 255, 0)  # Verde
+    elif cv2.waitKey(1) & 0xFF == ord('b'):
+        current_color = (255, 0, 0)  # Azul
 
     # Combinar lienzo con la imagen de la cámara
     combined_frame = cv2.addWeighted(frame, 0.5, canvas, 0.5, 0)
