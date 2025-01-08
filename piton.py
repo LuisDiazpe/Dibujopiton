@@ -111,9 +111,16 @@ def render_3d(canvas):
 
 # Función para agregar relieve 3D a las líneas
 def add_relief(canvas):
-    kernel = np.array([[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]])
-    relief = cv2.filter2D(canvas, -1, kernel)
-    return cv2.add(canvas, relief)
+    rows, cols, _ = canvas.shape
+    relief_canvas = np.zeros_like(canvas)
+
+    # Aplicar un efecto de sombreado para simular relieve
+    for offset in range(1, 6):  # Incrementar el rango para mayor relieve
+        shifted_canvas = np.roll(canvas, offset, axis=0)  # Desplazamiento en Y
+        shifted_canvas = np.roll(shifted_canvas, offset, axis=1)  # Desplazamiento en X
+        relief_canvas = cv2.addWeighted(relief_canvas, 1.0, shifted_canvas, 0.2, 0)
+
+    return cv2.add(canvas, relief_canvas)
 
 # Captura de video
 cap = cv2.VideoCapture(0)
