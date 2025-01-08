@@ -6,14 +6,33 @@ drawing_mode = False
 last_x, last_y = None, None
 canvas = None
 current_color = (255, 0, 0)  # Color inicial: Azul
+calibrated = False
+lower_skin = None
+upper_skin = None
+
+# Función para realizar calibración de la piel
+def calibrate_skin(frame):
+    global lower_skin, upper_skin, calibrated
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+    # Usar una región fija para calibrar (centro de la imagen)
+    h, w, _ = frame.shape
+    x1, y1, x2, y2 = w // 2 - 50, h // 2 - 50, w // 2 + 50, h // 2 + 50
+    roi = hsv[y1:y2, x1:x2]
+
+    # Obtener los valores mínimos y máximos de HSV en la región
+    lower_skin = np.percentile(roi.reshape(-1, 3), 5, axis=0).astype(np.uint8)
+    upper_skin = np.percentile(roi.reshape(-1, 3), 95, axis=0).astype(np.uint8)
+
+    calibrated = True
 
 # Función para detectar la mano y los dedos
 def detect_fingers(frame):
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    global lower_skin, upper_skin
+    if not calibrated:
+        return None, []
 
-    # Rango de color para la piel (ajustable según la iluminación)
-    lower_skin = np.array([0, 20, 70], dtype=np.uint8)
-    upper_skin = np.array([20, 255, 255], dtype=np.uint8)
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
     # Crear máscara para el color de la piel
     mask = cv2.inRange(hsv, lower_skin, upper_skin)
@@ -62,11 +81,11 @@ def detect_fingers(frame):
 
 # Función para detectar la piel dentro de un área específica
 def detect_skin_in_area(frame, x1, y1, x2, y2):
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    global lower_skin, upper_skin
+    if not calibrated:
+        return False
 
-    # Rango de color para la piel
-    lower_skin = np.array([0, 20, 70], dtype=np.uint8)
-    upper_skin = np.array([20, 255, 255], dtype=np.uint8)
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
     # Recortar el área y detectar piel
     roi = hsv[y1:y2, x1:x2]
@@ -95,6 +114,15 @@ while cap.isOpened():
     # Inicializar lienzo si no está creado o si el tamaño cambia
     if canvas is None or canvas.shape[:2] != (h, w):
         canvas = np.zeros((h, w, 3), dtype=np.uint8)
+
+    # Calibración inicial
+    if not calibrated:
+        cv2.putText(frame, "Calibrando...", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+        calibrate_skin(frame)
+        cv2.rectangle(frame, (w // 2 - 50, h // 2 - 50), (w // 2 + 50, h // 2 + 50), (255, 255, 255), 2)
+        cv2.imshow('Dibujo en vivo', frame)
+        cv2.waitKey(2000)  # Esperar 2 segundos para la calibración
+        continue
 
     # Detectar dedos
     contour, fingers = detect_fingers(frame)
@@ -130,20 +158,20 @@ while cap.isOpened():
                         cv2.line(canvas, (last_x, last_y), (x, y), current_color, 5)
                     last_x, last_y = x, y
 
-    # Crear botones para cambiar colores
-    cv2.rectangle(frame, (10, 10), (60, 60), (0, 0, 255), -1)  # Rojo
-    cv2.rectangle(frame, (70, 10), (120, 60), (0, 255, 0), -1)  # Verde
-    cv2.rectangle(frame, (130, 10), (180, 60), (255, 0, 0), -1)  # Azul
-    cv2.rectangle(frame, (190, 10), (240, 60), (200, 200, 200), -1)  # Borrar
+    # Crear botones para cambiar colores (agrandados con hitbox extendida)
+    cv2.rectangle(frame, (10, 10), (150, 150), (0, 0, 255), -1)  # Rojo
+    cv2.rectangle(frame, (160, 10), (300, 150), (0, 255, 0), -1)  # Verde
+    cv2.rectangle(frame, (310, 10), (450, 150), (255, 0, 0), -1)  # Azul
+    cv2.rectangle(frame, (460, 10), (600, 150), (200, 200, 200), -1)  # Borrar
 
     # Detectar interacción con los botones mediante detección de piel
-    if detect_skin_in_area(frame, 10, 10, 60, 60):  # Rojo
+    if detect_skin_in_area(frame, 10, 10, 150, 150):  # Rojo
         current_color = (0, 0, 255)
-    elif detect_skin_in_area(frame, 70, 10, 120, 60):  # Verde
+    elif detect_skin_in_area(frame, 160, 10, 300, 150):  # Verde
         current_color = (0, 255, 0)
-    elif detect_skin_in_area(frame, 130, 10, 180, 60):  # Azul
+    elif detect_skin_in_area(frame, 310, 10, 450, 150):  # Azul
         current_color = (255, 0, 0)
-    elif detect_skin_in_area(frame, 190, 10, 240, 60):  # Borrar
+    elif detect_skin_in_area(frame, 460, 10, 600, 150):  # Borrar
         canvas = np.zeros((h, w, 3), dtype=np.uint8)
 
     # Combinar lienzo con la imagen de la cámara
