@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 # Variables para dibujo
-drawing_mode = False
+drawing_mode = True  # Iniciar en modo dibujo
 last_x, last_y = None, None
 canvas = None
 current_color = (255, 0, 0)  # Color inicial: Azul
@@ -25,7 +25,7 @@ def detect_fingers(frame):
     contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
     if len(contours) == 0:
-        return None, []
+        return None, [], None
 
     # Contorno más grande (asumimos que es la mano)
     max_contour = max(contours, key=cv2.contourArea)
@@ -35,10 +35,12 @@ def detect_fingers(frame):
     defects = cv2.convexityDefects(max_contour, hull)
 
     if defects is None:
-        return max_contour, []
+        return max_contour, [], None
 
     # Contar defectos de convexidad como dedos
     fingers = 0
+    finger_tip = None
+
     for i in range(defects.shape[0]):
         s, e, f, d = defects[i, 0]
         start = tuple(max_contour[s][0])
@@ -54,11 +56,13 @@ def detect_fingers(frame):
         # Contar como un dedo si el ángulo es pequeño
         if angle <= np.pi / 2 and d > 10000:
             fingers += 1
+            if finger_tip is None or end[1] < finger_tip[1]:
+                finger_tip = end  # Usar la punta más alta detectada
 
     # Considerar el pulgar como un dedo extra
     fingers += 1
 
-    return max_contour, fingers
+    return max_contour, fingers, finger_tip
 
 # Captura de video
 cap = cv2.VideoCapture(0)
@@ -79,9 +83,7 @@ while cap.isOpened():
         canvas = np.zeros((h, w, 3), dtype=np.uint8)
 
     # Detectar dedos
-    contour, fingers = detect_fingers(frame)
-
-    finger_tip = None  # Posición de la punta del dedo índice
+    contour, fingers, finger_tip = detect_fingers(frame)
 
     if contour is not None:
         # Dibujar contorno de la mano
@@ -98,36 +100,37 @@ while cap.isOpened():
             cv2.putText(frame, "Modo dibujo desactivado", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
         # Si un dedo está levantado y el modo de dibujo está activado
-        if fingers == 1:
-            hull = cv2.convexHull(contour)
-            moments = cv2.moments(hull)
-            if moments["m00"] != 0:
-                x = int(moments["m10"] / moments["m00"])
-                y = int(moments["m01"] / moments["m00"])
-                finger_tip = (x, y)
+        if fingers == 1 and finger_tip is not None:
+            x, y = finger_tip
 
-                if drawing_mode:
-                    if last_x is not None and last_y is not None:
-                        # Dibujar en el lienzo
-                        cv2.line(canvas, (last_x, last_y), (x, y), current_color, 5)
-                    last_x, last_y = x, y
+            if drawing_mode:
+                if last_x is not None and last_y is not None:
+                    # Dibujar en el lienzo
+                    cv2.line(canvas, (last_x, last_y), (x, y), current_color, 5)
+                last_x, last_y = x, y
 
-    # Crear botones para cambiar colores
-    cv2.rectangle(frame, (10, 10), (60, 60), (0, 0, 255), -1)  # Rojo
-    cv2.rectangle(frame, (70, 10), (120, 60), (0, 255, 0), -1)  # Verde
-    cv2.rectangle(frame, (130, 10), (180, 60), (255, 0, 0), -1)  # Azul
-    cv2.rectangle(frame, (190, 10), (240, 60), (200, 200, 200), -1)  # Borrar
+    # Crear botones para cambiar colores (botones más grandes)
+    cv2.rectangle(frame, (10, 10), (150, 150), (0, 0, 255), -1)  # Rojo
+    cv2.rectangle(frame, (160, 10), (300, 150), (0, 255, 0), -1)  # Verde
+    cv2.rectangle(frame, (310, 10), (450, 150), (255, 0, 0), -1)  # Azul
+    cv2.rectangle(frame, (460, 10), (600, 150), (200, 200, 200), -1)  # Borrar
+
+    # Mostrar etiquetas en los botones
+    cv2.putText(frame, "Rojo", (30, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    cv2.putText(frame, "Verde", (180, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    cv2.putText(frame, "Azul", (330, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    cv2.putText(frame, "Borrar", (480, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
 
     # Detectar interacción con los botones
     if finger_tip:
         fx, fy = finger_tip
-        if 10 <= fx <= 60 and 10 <= fy <= 60:  # Rojo
+        if 10 <= fx <= 150 and 10 <= fy <= 150:  # Rojo
             current_color = (0, 0, 255)
-        elif 70 <= fx <= 120 and 10 <= fy <= 60:  # Verde
+        elif 160 <= fx <= 300 and 10 <= fy <= 150:  # Verde
             current_color = (0, 255, 0)
-        elif 130 <= fx <= 180 and 10 <= fy <= 60:  # Azul
+        elif 310 <= fx <= 450 and 10 <= fy <= 150:  # Azul
             current_color = (255, 0, 0)
-        elif 190 <= fx <= 240 and 10 <= fy <= 60:  # Borrar
+        elif 460 <= fx <= 600 and 10 <= fy <= 150:  # Borrar
             canvas = np.zeros((h, w, 3), dtype=np.uint8)
 
     # Combinar lienzo con la imagen de la cámara
