@@ -62,6 +62,8 @@ def detect_fingers(frame):
 
 # Captura de video
 cap = cv2.VideoCapture(0)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
 while cap.isOpened():
     ret, frame = cap.read()
@@ -72,12 +74,14 @@ while cap.isOpened():
     frame = cv2.flip(frame, 1)
     h, w, _ = frame.shape
 
-    # Inicializar lienzo si no está creado
-    if canvas is None:
+    # Inicializar lienzo si no está creado o si el tamaño cambia
+    if canvas is None or canvas.shape[:2] != (h, w):
         canvas = np.zeros((h, w, 3), dtype=np.uint8)
 
     # Detectar dedos
     contour, fingers = detect_fingers(frame)
+
+    finger_tip = None  # Posición de la punta del dedo índice
 
     if contour is not None:
         # Dibujar contorno de la mano
@@ -94,17 +98,19 @@ while cap.isOpened():
             cv2.putText(frame, "Modo dibujo desactivado", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
         # Si un dedo está levantado y el modo de dibujo está activado
-        if fingers == 1 and drawing_mode:
+        if fingers == 1:
             hull = cv2.convexHull(contour)
             moments = cv2.moments(hull)
             if moments["m00"] != 0:
                 x = int(moments["m10"] / moments["m00"])
                 y = int(moments["m01"] / moments["m00"])
+                finger_tip = (x, y)
 
-                if last_x is not None and last_y is not None:
-                    # Dibujar en el lienzo
-                    cv2.line(canvas, (last_x, last_y), (x, y), current_color, 5)
-                last_x, last_y = x, y
+                if drawing_mode:
+                    if last_x is not None and last_y is not None:
+                        # Dibujar en el lienzo
+                        cv2.line(canvas, (last_x, last_y), (x, y), current_color, 5)
+                    last_x, last_y = x, y
 
     # Crear botones para cambiar colores
     cv2.rectangle(frame, (10, 10), (60, 60), (0, 0, 255), -1)  # Rojo
@@ -112,20 +118,16 @@ while cap.isOpened():
     cv2.rectangle(frame, (130, 10), (180, 60), (255, 0, 0), -1)  # Azul
     cv2.rectangle(frame, (190, 10), (240, 60), (200, 200, 200), -1)  # Borrar
 
-    # Detectar clics en los botones
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    mask_buttons = cv2.inRange(hsv, np.array([0, 0, 200]), np.array([180, 50, 255]))
-    contours_buttons, _ = cv2.findContours(mask_buttons, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-    for contour in contours_buttons:
-        x, y, w, h = cv2.boundingRect(contour)
-        if 10 <= x <= 60 and 10 <= y <= 60:  # Rojo
+    # Detectar interacción con los botones
+    if finger_tip:
+        fx, fy = finger_tip
+        if 10 <= fx <= 60 and 10 <= fy <= 60:  # Rojo
             current_color = (0, 0, 255)
-        elif 70 <= x <= 120 and 10 <= y <= 60:  # Verde
+        elif 70 <= fx <= 120 and 10 <= fy <= 60:  # Verde
             current_color = (0, 255, 0)
-        elif 130 <= x <= 180 and 10 <= y <= 60:  # Azul
+        elif 130 <= fx <= 180 and 10 <= fy <= 60:  # Azul
             current_color = (255, 0, 0)
-        elif 190 <= x <= 240 and 10 <= y <= 60:  # Borrar
+        elif 190 <= fx <= 240 and 10 <= fy <= 60:  # Borrar
             canvas = np.zeros((h, w, 3), dtype=np.uint8)
 
     # Combinar lienzo con la imagen de la cámara
