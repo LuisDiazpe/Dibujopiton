@@ -115,10 +115,10 @@ def add_relief(canvas):
     relief_canvas = np.zeros_like(canvas)
 
     # Aplicar un efecto de sombreado para simular relieve
-    for offset in range(1, 6):  # Incrementar el rango para mayor relieve
+    for offset in range(1, 11):  # Incrementar el rango para mayor relieve
         shifted_canvas = np.roll(canvas, offset, axis=0)  # Desplazamiento en Y
         shifted_canvas = np.roll(shifted_canvas, offset, axis=1)  # Desplazamiento en X
-        relief_canvas = cv2.addWeighted(relief_canvas, 1.0, shifted_canvas, 0.2, 0)
+        relief_canvas = cv2.addWeighted(relief_canvas, 1.0, shifted_canvas, 0.3, 0)
 
     return cv2.add(canvas, relief_canvas)
 
