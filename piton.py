@@ -6,7 +6,7 @@ drawing_mode = False
 last_x, last_y = None, None
 canvas = None
 current_color = (255, 0, 0)  # Color inicial: Azul
-current_thickness = 5  # Grosor inicial del trazo
+current_thickness = 8  # Grosor inicial del trazo
 mouse_click_position = None  # Almacena la posición del clic del mouse
 render_3d_mode = False  # Indica si el modo 3D está activado
 add_3d_relief = False  # Indica si se debe aplicar relieve 3D a las líneas
@@ -77,7 +77,7 @@ def mouse_callback(event, x, y, flags, param):
         mouse_click_position = (x, y)
         mouse_drag_start = (x, y)  # Iniciar arrastre
         shape_start = (x, y)  # Guardar punto inicial para formas
-        print(f"Clic detectado en: {mouse_click_position}")
+        
 
     elif event == cv2.EVENT_MOUSEMOVE and mouse_drag_start:
         # Calcular diferencias de movimiento para rotar
@@ -220,34 +220,34 @@ while cap.isOpened():
         x, y = mouse_click_position
         if 10 <= x <= 150 and 10 <= y <= 150:  # Rojo
             current_color = (0, 0, 255)
-            print("Color cambiado a Rojo")
+
         elif 160 <= x <= 300 and 10 <= y <= 150:  # Verde
             current_color = (0, 255, 0)
-            print("Color cambiado a Verde")
+            
         elif 310 <= x <= 450 and 10 <= y <= 150:  # Azul
             current_color = (255, 0, 0)
-            print("Color cambiado a Azul")
+          
         elif 460 <= x <= 600 and 10 <= y <= 150:  # Borrar
             canvas = np.zeros((h, w, 3), dtype=np.uint8)
-            print("Canvas borrado")
+            
         elif 610 <= x <= 750 and 10 <= y <= 150:  # Activar modo 3D
             render_3d_mode = not render_3d_mode
-            print(f"Modo 3D {'activado' if render_3d_mode else 'desactivado'}")
+           
         elif render_3d_mode and 760 <= x <= 900 and 10 <= y <= 150:  # Activar relieve 3D
             add_3d_relief = not add_3d_relief
-            print(f"Relieve 3D {'activado' if add_3d_relief else 'desactivado'}")
+            
         elif 10 <= x <= 150 and 160 <= y <= 300:  # Aumentar grosor
             current_thickness += 2
-            print(f"Grosor aumentado: {current_thickness}")
+           
         elif 160 <= x <= 300 and 160 <= y <= 300:  # Disminuir grosor
             current_thickness = max(1, current_thickness - 2)
-            print(f"Grosor disminuido: {current_thickness}")
+            
         elif 310 <= x <= 450 and 160 <= y <= 300:  # Modo rectángulo
             shape_mode = "rectangle"
-            print("Modo rectángulo activado")
+           
         elif 460 <= x <= 600 and 160 <= y <= 300:  # Modo círculo
             shape_mode = "circle"
-            print("Modo círculo activado")
+            
         mouse_click_position = None  # Reset posición clickeada
 
     # Aplicar modo 3D si está activado
