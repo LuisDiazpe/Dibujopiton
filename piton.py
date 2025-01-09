@@ -6,12 +6,15 @@ drawing_mode = False
 last_x, last_y = None, None
 canvas = None
 current_color = (255, 0, 0)  # Color inicial: Azul
+current_thickness = 5  # Grosor inicial del trazo
 mouse_click_position = None  # Almacena la posición del clic del mouse
 render_3d_mode = False  # Indica si el modo 3D está activado
 add_3d_relief = False  # Indica si se debe aplicar relieve 3D a las líneas
 rotation_angle_x = 0  # Ángulo de rotación en X para el 3D
 rotation_angle_y = 0  # Ángulo de rotación en Y para el 3D
 mouse_drag_start = None  # Posición inicial para arrastrar el mouse
+shape_mode = None  # Modos: None, "rectangle", "circle"
+shape_start = None  # Punto inicial para formas
 
 # Función para detectar la mano y los dedos
 def detect_fingers(frame):
@@ -68,11 +71,12 @@ def detect_fingers(frame):
 
 # Función de callback para manejar clics y arrastres del mouse
 def mouse_callback(event, x, y, flags, param):
-    global mouse_click_position, mouse_drag_start, rotation_angle_x, rotation_angle_y
+    global mouse_click_position, mouse_drag_start, rotation_angle_x, rotation_angle_y, shape_start, shape_mode
 
     if event == cv2.EVENT_LBUTTONDOWN:
         mouse_click_position = (x, y)
         mouse_drag_start = (x, y)  # Iniciar arrastre
+        shape_start = (x, y)  # Guardar punto inicial para formas
         print(f"Clic detectado en: {mouse_click_position}")
 
     elif event == cv2.EVENT_MOUSEMOVE and mouse_drag_start:
@@ -85,6 +89,13 @@ def mouse_callback(event, x, y, flags, param):
 
     elif event == cv2.EVENT_LBUTTONUP:
         mouse_drag_start = None  # Terminar arrastre
+        if shape_mode and shape_start:
+            if shape_mode == "rectangle":
+                cv2.rectangle(canvas, shape_start, (x, y), current_color, current_thickness)
+            elif shape_mode == "circle":
+                radius = int(np.sqrt((x - shape_start[0])**2 + (y - shape_start[1])**2))
+                cv2.circle(canvas, shape_start, radius, current_color, current_thickness)
+            shape_start = None
 
 # Función para aplicar el efecto 3D al dibujo con rotación
 def render_3d(canvas):
@@ -174,15 +185,19 @@ while cap.isOpened():
                 if drawing_mode:
                     if last_x is not None and last_y is not None:
                         # Dibujar en el lienzo
-                        cv2.line(canvas, (last_x, last_y), (x, y), current_color, 5)
+                        cv2.line(canvas, (last_x, last_y), (x, y), current_color, current_thickness)
                     last_x, last_y = x, y
 
-    # Crear botones para cambiar colores y activar el modo 3D
+    # Crear botones para cambiar colores, grosores, formas y activar el modo 3D
     cv2.rectangle(frame, (10, 10), (150, 150), (0, 0, 255), -1)  # Rojo
     cv2.rectangle(frame, (160, 10), (300, 150), (0, 255, 0), -1)  # Verde
     cv2.rectangle(frame, (310, 10), (450, 150), (255, 0, 0), -1)  # Azul
     cv2.rectangle(frame, (460, 10), (600, 150), (200, 200, 200), -1)  # Borrar
     cv2.rectangle(frame, (610, 10), (750, 150), (100, 100, 255), -1)  # 3D
+    cv2.rectangle(frame, (10, 160), (150, 300), (50, 50, 50), -1)  # Grosor más
+    cv2.rectangle(frame, (160, 160), (300, 300), (150, 150, 150), -1)  # Grosor menos
+    cv2.rectangle(frame, (310, 160), (450, 300), (200, 50, 50), -1)  # Rectángulo
+    cv2.rectangle(frame, (460, 160), (600, 300), (50, 50, 200), -1)  # Círculo
 
     # Etiquetas de los botones
     cv2.putText(frame, "Rojo", (30, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
@@ -190,6 +205,10 @@ while cap.isOpened():
     cv2.putText(frame, "Azul", (340, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
     cv2.putText(frame, "Borrar", (480, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
     cv2.putText(frame, "3D", (660, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    cv2.putText(frame, "+Gros", (30, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    cv2.putText(frame, "-Gros", (180, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    cv2.putText(frame, "Rect", (340, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    cv2.putText(frame, "Circ", (480, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
     if render_3d_mode:
         # Mostrar botón adicional para activar el relieve 3D
@@ -217,6 +236,18 @@ while cap.isOpened():
         elif render_3d_mode and 760 <= x <= 900 and 10 <= y <= 150:  # Activar relieve 3D
             add_3d_relief = not add_3d_relief
             print(f"Relieve 3D {'activado' if add_3d_relief else 'desactivado'}")
+        elif 10 <= x <= 150 and 160 <= y <= 300:  # Aumentar grosor
+            current_thickness += 2
+            print(f"Grosor aumentado: {current_thickness}")
+        elif 160 <= x <= 300 and 160 <= y <= 300:  # Disminuir grosor
+            current_thickness = max(1, current_thickness - 2)
+            print(f"Grosor disminuido: {current_thickness}")
+        elif 310 <= x <= 450 and 160 <= y <= 300:  # Modo rectángulo
+            shape_mode = "rectangle"
+            print("Modo rectángulo activado")
+        elif 460 <= x <= 600 and 160 <= y <= 300:  # Modo círculo
+            shape_mode = "circle"
+            print("Modo círculo activado")
         mouse_click_position = None  # Reset posición clickeada
 
     # Aplicar modo 3D si está activado
