@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 
+
 # Variables para dibujo
 drawing_mode = False
 last_x, last_y = None, None
